@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>リサージュ図形</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0f;
+    color: #e0e0ff;
+    font-family: 'Courier New', monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+  }
+  h1 {
+    font-size: 1.4rem;
+    letter-spacing: 0.2em;
+    color: #88aaff;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+  }
+  #canvas {
+    border: 1px solid #223;
+    border-radius: 4px;
+    background: #05050d;
+    cursor: crosshair;
+  }
+  .controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    width: 100%;
+    max-width: 700px;
+    margin-top: 16px;
+  }
+  .ctrl {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  label {
+    font-size: 0.75rem;
+    color: #8888aa;
+    display: flex;
+    justify-content: space-between;
+  }
+  label span { color: #aaddff; font-weight: bold; }
+  input[type=range] {
+    width: 100%;
+    accent-color: #6688ff;
+    cursor: pointer;
+  }
+  .row {
+    display: flex;
+    gap: 10px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  button {
+    background: #1a1a2e;
+    border: 1px solid #334;
+    color: #aaccff;
+    padding: 8px 18px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.8rem;
+    letter-spacing: 0.1em;
+    transition: background 0.15s;
+  }
+  button:hover { background: #252540; border-color: #6688ff; }
+  button.active { background: #2a2a50; border-color: #88aaff; color: #ccddff; }
+  #info {
+    font-size: 0.7rem;
+    color: #556;
+    margin-top: 10px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<h1>Lissajous Figure</h1>
+<canvas id="canvas" width="700" height="500"></canvas>
+
+<div class="controls">
+  <div class="ctrl">
+    <label>周波数 X (a) <span id="aVal">3</span></label>
+    <input type="range" id="aSlider" min="1" max="12" step="1" value="3">
+  </div>
+  <div class="ctrl">
+    <label>周波数 Y (b) <span id="bVal">2</span></label>
+    <input type="range" id="bSlider" min="1" max="12" step="1" value="2">
+  </div>
+  <div class="ctrl">
+    <label>位相差 δ (rad) <span id="dVal">1.57</span></label>
+    <input type="range" id="dSlider" min="0" max="6.283" step="0.01" value="1.5708">
+  </div>
+  <div class="ctrl">
+    <label>描画速度 <span id="speedVal">2</span></label>
+    <input type="range" id="speedSlider" min="1" max="10" step="1" value="2">
+  </div>
+  <div class="ctrl">
+    <label>線の太さ <span id="thickVal">1.5</span></label>
+    <input type="range" id="thickSlider" min="0.5" max="5" step="0.5" value="1.5">
+  </div>
+  <div class="ctrl">
+    <label>残像 (trail) <span id="trailVal">0.08</span></label>
+    <input type="range" id="trailSlider" min="0.01" max="0.5" step="0.01" value="0.08">
+  </div>
+</div>
+
+<div class="row">
+  <button id="btnAnimate" class="active">▶ アニメーション</button>
+  <button id="btnColor">カラーモード</button>
+  <button id="btnClear">クリア</button>
+  <button id="btnPreset1">3:2</button>
+  <button id="btnPreset2">5:4</button>
+  <button id="btnPreset3">7:6</button>
+  <button id="btnPreset4">3:1</button>
+</div>
+<div id="info">x(t) = A·sin(at + δ) &nbsp;|&nbsp; y(t) = B·sin(bt) &nbsp;|&nbsp; ドラッグで位相差を変化</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const cx = W / 2, cy = H / 2;
+const R = Math.min(W, H) * 0.44;
+
+let a = 3, b = 2, delta = Math.PI / 2;
+let speed = 2, thick = 1.5, trail = 0.08;
+let t = 0;
+let animating = true;
+let colorMode = false;
+let hue = 200;
+let dragging = false, dragStartX = 0, dragStartDelta = 0;
+
+function getSlider(id) { return parseFloat(document.getElementById(id).value); }
+function setLabel(id, val) { document.getElementById(id).textContent = typeof val === 'number' ? val.toFixed(2) : val; }
+
+function readControls() {
+  a = getSlider('aSlider');
+  b = getSlider('bSlider');
+  delta = getSlider('dSlider');
+  speed = getSlider('speedSlider');
+  thick = getSlider('thickSlider');
+  trail = getSlider('trailSlider');
+}
+
+['aSlider','bSlider','dSlider','speedSlider','thickSlider','trailSlider'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => {
+    readControls();
+    setLabel('aVal', a);
+    setLabel('bVal', b);
+    setLabel('dVal', delta.toFixed(2));
+    setLabel('speedVal', speed);
+    setLabel('thickVal', thick);
+    setLabel('trailVal', trail.toFixed(2));
+  });
+});
+
+document.getElementById('btnAnimate').addEventListener('click', function() {
+  animating = !animating;
+  this.textContent = animating ? '▶ アニメーション' : '⏸ 一時停止';
+  this.classList.toggle('active', animating);
+  if (animating) requestAnimationFrame(loop);
+});
+
+document.getElementById('btnColor').addEventListener('click', function() {
+  colorMode = !colorMode;
+  this.classList.toggle('active', colorMode);
+});
+
+document.getElementById('btnClear').addEventListener('click', () => {
+  ctx.clearRect(0, 0, W, H);
+  t = 0;
+});
+
+function setPreset(av, bv, dv) {
+  a = av; b = bv; delta = dv;
+  document.getElementById('aSlider').value = av;
+  document.getElementById('bSlider').value = bv;
+  document.getElementById('dSlider').value = dv;
+  setLabel('aVal', av);
+  setLabel('bVal', bv);
+  setLabel('dVal', dv.toFixed(2));
+  ctx.clearRect(0, 0, W, H);
+  t = 0;
+}
+
+document.getElementById('btnPreset1').addEventListener('click', () => setPreset(3, 2, Math.PI / 2));
+document.getElementById('btnPreset2').addEventListener('click', () => setPreset(5, 4, Math.PI / 4));
+document.getElementById('btnPreset3').addEventListener('click', () => setPreset(7, 6, Math.PI / 3));
+document.getElementById('btnPreset4').addEventListener('click', () => setPreset(3, 1, Math.PI / 2));
+
+canvas.addEventListener('mousedown', e => {
+  dragging = true;
+  dragStartX = e.clientX;
+  dragStartDelta = delta;
+});
+canvas.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const dx = (e.clientX - dragStartX) / W;
+  delta = dragStartDelta + dx * Math.PI * 2;
+  delta = ((delta % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  document.getElementById('dSlider').value = delta;
+  setLabel('dVal', delta.toFixed(2));
+});
+canvas.addEventListener('mouseup', () => dragging = false);
+canvas.addEventListener('mouseleave', () => dragging = false);
+
+let lastTime = 0;
+
+function loop(ts) {
+  if (!animating) return;
+
+  const dt = Math.min((ts - lastTime) / 1000, 0.05);
+  lastTime = ts;
+
+  // trailing fade
+  ctx.fillStyle = `rgba(5, 5, 13, ${trail})`;
+  ctx.fillRect(0, 0, W, H);
+
+  // draw segment
+  const steps = Math.ceil(speed * 3);
+  const dtStep = 0.012 * speed;
+
+  ctx.lineWidth = thick;
+  ctx.lineCap = 'round';
+
+  for (let i = 0; i < steps; i++) {
+    const t0 = t;
+    t += dtStep / steps;
+
+    const x0 = cx + R * Math.sin(a * t0 + delta);
+    const y0 = cy + R * Math.sin(b * t0);
+    const x1 = cx + R * Math.sin(a * t + delta);
+    const y1 = cy + R * Math.sin(b * t);
+
+    if (colorMode) {
+      hue = (hue + 0.3) % 360;
+      ctx.strokeStyle = `hsl(${hue}, 80%, 65%)`;
+    } else {
+      const brightness = 50 + 30 * Math.sin(t * 0.5);
+      ctx.strokeStyle = `hsl(220, 70%, ${brightness}%)`;
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+  }
+
+  // glow dot at current tip
+  const tipX = cx + R * Math.sin(a * t + delta);
+  const tipY = cy + R * Math.sin(b * t);
+  const grad = ctx.createRadialGradient(tipX, tipY, 0, tipX, tipY, 8);
+  grad.addColorStop(0, 'rgba(200,220,255,0.9)');
+  grad.addColorStop(1, 'rgba(100,140,255,0)');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(tipX, tipY, 8, 0, Math.PI * 2);
+  ctx.fill();
+
+  requestAnimationFrame(loop);
+}
+
+requestAnimationFrame(ts => { lastTime = ts; loop(ts); });
+</script>
+</body>
+</html>
