@@ -213,22 +213,6 @@ canvas.addEventListener('mousemove', e => {
 canvas.addEventListener('mouseup', () => dragging = false);
 canvas.addEventListener('mouseleave', () => dragging = false);
 
-// タッチ操作対応（スマホ・タブレット）
-canvas.addEventListener('touchstart', e => {
-  dragging = true;
-  dragStartX = e.touches[0].clientX;
-  dragStartDelta = delta;
-}, { passive: true });
-canvas.addEventListener('touchmove', e => {
-  if (!dragging) return;
-  const dx = (e.touches[0].clientX - dragStartX) / W;
-  delta = dragStartDelta + dx * Math.PI * 2;
-  delta = ((delta % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-  document.getElementById('dSlider').value = delta;
-  setLabel('dVal', delta.toFixed(2));
-}, { passive: true });
-canvas.addEventListener('touchend', () => dragging = false);
-
 let lastTime = 0;
 
 function loop(ts) {
